@@ -73,7 +73,22 @@ def browser_act(task: str, starting_page: str, max_steps: int = 10,
                     steps.append({"step": step, "status": "plan_error",
                                   "error": str(exc)[:300]})
                     continue
-                result = _dispatch(page, plan, obs["candidates"])
+                candidates = obs["candidates"]
+                target = next((c for c in candidates
+                               if c["ref"] == plan.target_ref), None)
+                dupes = (sum(1 for c in candidates
+                             if target and c["name"] == target["name"]) > 1
+                         if target else False)
+                if plan.action in ("click", "fill", "select", "scroll") and (
+                        plan.confidence < 0.5 or dupes):
+                    from .rerank import rerank_candidates
+
+                    ranked = rerank_candidates(plan.text or task,
+                                               obs["screenshot_png"], candidates)
+                    if ranked:
+                        plan = plan.model_copy(
+                            update={"target_ref": ranked[0]["ref"]})
+                result = _dispatch(page, plan, candidates)
                 entry = {"step": step, "action": plan.action,
                          "target_ref": plan.target_ref,
                          "confidence": plan.confidence, "ok": result["ok"],
