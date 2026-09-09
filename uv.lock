@@ -167,7 +167,7 @@ wheels = [
 [[package]]
 name = "not-nova-act"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "playwright" },
@@ -175,8 +175,8 @@ dependencies = [
     { name = "redis" },
 ]
 
-[package.optional-dependencies]
-test = [
+[package.dev-dependencies]
+dev = [
     { name = "pytest" },
 ]
 
@@ -185,10 +185,11 @@ requires-dist = [
     { name = "httpx" },
     { name = "playwright" },
     { name = "pydantic" },
-    { name = "pytest", marker = "extra == 'test'" },
     { name = "redis" },
 ]
-provides-extras = ["test"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest" }]
 
 [[package]]
 name = "packaging"

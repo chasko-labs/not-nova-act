@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "not-nova-act"
 version = "0.1.0"
@@ -5,8 +9,8 @@ description = "Local-first rebuild of Nova Act browser-use: Playwright hands plu
 requires-python = ">=3.12"
 dependencies = ["playwright", "pydantic", "httpx", "redis"]
 
-[project.optional-dependencies]
-test = ["pytest"]
+[dependency-groups]
+dev = ["pytest"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
