@@ -67,14 +67,14 @@ def _shrink_for_planning(png_bytes: bytes) -> str:
 
 
 def plan_action(task: str, obs: dict[str, Any],
-                model: str = PLANNER_MODEL, timeout: int = 180) -> ActionPlan:
+                model: str = PLANNER_MODEL, timeout: int = 280) -> ActionPlan:
     """One planner call. Raises on transport/parse failure (caller retries)."""
     import httpx
 
     shot_b64 = _shrink_for_planning(obs["screenshot_png"])
     body = {"model": model, "prompt": _prompt(task, obs),
             "images": [shot_b64], "stream": False,
-            "options": {"num_ctx": 8192}}
+            "options": {"num_ctx": 8192, "think": False}}
     r = httpx.post(f"{OLLAMA_URL}/api/generate", json=body, timeout=timeout)
     r.raise_for_status()
     text = r.json().get("response", "")
