@@ -3,7 +3,7 @@ name = "not-nova-act"
 version = "0.1.0"
 description = "Local-first rebuild of Nova Act browser-use: Playwright hands plus small local vision models."
 requires-python = ">=3.12"
-dependencies = ["playwright", "pydantic", "httpx"]
+dependencies = ["playwright", "pydantic", "httpx", "redis"]
 
 [project.optional-dependencies]
 test = ["pytest"]
