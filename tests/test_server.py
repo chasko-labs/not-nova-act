@@ -11,5 +11,7 @@ def test_seven_tools_registered():
         return sorted(t.name for t in tools)
 
     found = asyncio.run(names())
-    assert len(found) == 7, found
+    assert len(found) == 9, found
     assert "browser_take_screenshot_tool" in found, found
+    assert "browser_assert_visual_tool" in found, found
+    assert "browser_compress_shot_tool" in found, found

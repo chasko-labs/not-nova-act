@@ -9,6 +9,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from not_nova_act.act import browser_act
+from not_nova_act.analyze import assert_visual, compress_for_context
 from not_nova_act.extract import browser_act_get
 from not_nova_act.hands import (
     browser_check_page,
@@ -90,6 +91,19 @@ def browser_check_page_tool(url: str, checks: list[dict[str, Any]]) -> dict[str,
 def browser_list_models_tool() -> dict[str, Any]:
     """Local registry: ollama + HF cache + aliases. Free."""
     return browser_list_models()
+
+
+@mcp.tool()
+def browser_compress_shot_tool(screenshot_path: str) -> dict[str, Any]:
+    """JPEG sibling for vision contexts. Free (Pillow only)."""
+    return compress_for_context(screenshot_path)
+
+
+@mcp.tool()
+def browser_assert_visual_tool(screenshot_path: str,
+                               statement: str) -> dict[str, Any]:
+    """Local-model true/false verdict on a visual claim. Model cost: qwen."""
+    return assert_visual(screenshot_path, statement)
 
 
 def main() -> None:

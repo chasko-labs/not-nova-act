@@ -43,6 +43,30 @@ def _cap_width(path: Path, max_width: int) -> dict[str, int]:
         return {"width": w, "height": h}
 
 
+def compress_image(path: Path, fmt: str = "jpeg", quality: int = 70) -> dict[str, Any]:
+    """Save a compressed sibling `<stem>.min.<fmt>` next to path.
+    JPEG q70 is typically 5-10x smaller than PNG screenshots — the form
+    vision contexts should carry instead of raw PNGs."""
+    from PIL import Image
+
+    path = Path(path)
+
+    if fmt not in ("jpeg", "png"):
+        return {"status": "error", "error_message": f"unknown format {fmt}"}
+    try:
+        with Image.open(path) as im:
+            rgb = im.convert("RGB")
+            ext = "jpg" if fmt == "jpeg" else "png"
+            out = path.with_name(f"{path.stem}.min.{ext}")
+            save_kw: dict[str, Any] = {"quality": quality} if fmt == "jpeg" else {}
+            rgb.save(out, **save_kw)
+        return {"status": "completed", "compressed_path": str(out),
+                "bytes": out.stat().st_size,
+                "source_bytes": path.stat().st_size}
+    except Exception as exc:
+        return {"status": "error", "error_message": str(exc)[:200]}
+
+
 def browser_take_screenshot(
     url: str,
     wait_seconds: int = 3,

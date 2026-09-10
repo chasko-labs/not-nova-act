@@ -50,6 +50,12 @@ attached raw blows it, as happened in the sumerian v0.1054 verify. Rules:
   `browser_take_screenshot` — the file is downscaled at capture, aspect
   preserved, dims reported in `image_size`. Full-res stays the default for
   artifact evidence.
+- Compress before attaching: `browser_compress_shot_tool` writes a `.min.jpg`
+  sibling (q70). Rich pages shrink ~5x (494KB -> 97KB measured); flat pages
+  get BIGGER (19KB -> 25KB) — skip compression there.
+- For eyes-needed verdicts use `browser_assert_visual_tool` (local qwen
+  true/false, e.g. "the Begin button is fully visible") instead of agent
+  vision. 9 tools live on :8171 now (was 7).
 - Never attach `trace.zip` contents or full-page desktop PNGs raw.
 
 ## using the tool (for any agent on this box)
