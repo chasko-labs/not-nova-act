@@ -80,7 +80,8 @@ def browser_workflow_tool(definition_path: str) -> dict[str, Any]:
 def browser_take_screenshot_tool(url: str, full_page: bool = True,
                                  wait_seconds: int = 3,
                                  viewport: dict[str, int] | None = None,
-                                 max_width: int | None = None) -> dict[str, Any]:
+                                 max_width: int | None = None,
+                                 mobile: bool = False) -> dict[str, Any]:
     """Navigate + capture. Free (Playwright only).
 
     viewport sets the RENDER width (e.g. {"width": 375, "height": 812} for
@@ -88,20 +89,30 @@ def browser_take_screenshot_tool(url: str, full_page: bool = True,
     1280x800. max_width is a separate OUTPUT downscale cap (Pillow resize)
     for attaching the PNG to a vision context (readers cap ~2000px) -- it
     does not change what width the page renders at.
+
+    mobile=True turns on true device emulation (is_mobile + device_scale_factor
+    + has_touch) so CSS `width=device-width` resolves to the viewport width and
+    (max-width) @media rules fire. Set it whenever asserting a mobile layout;
+    a 375 viewport WITHOUT mobile=True only shrinks the window and still renders
+    the desktop layout.
     """
     return browser_take_screenshot(url, wait_seconds, full_page,
-                                   viewport=viewport, max_width=max_width)
+                                   viewport=viewport, max_width=max_width,
+                                   mobile=mobile)
 
 
 @mcp.tool()
 def browser_check_page_tool(url: str, checks: list[dict[str, Any]],
-                            viewport: dict[str, int] | None = None) -> dict[str, Any]:
+                            viewport: dict[str, int] | None = None,
+                            mobile: bool = False) -> dict[str, Any]:
     """Deterministic DOM assertions. Free (no model).
 
     viewport sets the render width (e.g. {"width": 375, "height": 812});
-    None renders at 1280x800.
+    None renders at 1280x800. mobile=True emulates a real mobile device so
+    device-width and (max-width) @media rules track the requested viewport
+    width -- required to assert a mobile layout, not just a narrow window.
     """
-    return browser_check_page(url, checks, viewport=viewport)
+    return browser_check_page(url, checks, viewport=viewport, mobile=mobile)
 
 
 @mcp.tool()
