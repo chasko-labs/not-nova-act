@@ -38,6 +38,20 @@ project `.venv`, port 8171). If the service ever goes dark:
 `systemctl --user start not-nova-act`; if user units are dead after logout,
 re-check `loginctl show-user bryanchasko | grep Linger`.
 
+## screenshots: do NOT attach raw PNGs to vision context
+
+Reader limit is ~2000px per side — a 3-width capture pass (375/768/1280)
+attached raw blows it, as happened in the sumerian v0.1054 verify. Rules:
+
+- Prefer assertions over eyeballs: `browser_check_page` / `run_checks` /
+  `browser_act_get` return verdicts as JSON. Only look at pixels when the
+  verdict needs eyes (overlap, smear, layout breaks).
+- When you must view: pass `max_width` (e.g. 1280) to
+  `browser_take_screenshot` — the file is downscaled at capture, aspect
+  preserved, dims reported in `image_size`. Full-res stays the default for
+  artifact evidence.
+- Never attach `trace.zip` contents or full-page desktop PNGs raw.
+
 ## using the tool (for any agent on this box)
 
 ```python

@@ -30,13 +30,32 @@ def _shot_path(prefix: str) -> Path:
     return SCREENSHOT_DIR / f"{prefix}-{int(time.time() * 1000)}.png"
 
 
+def _cap_width(path: Path, max_width: int) -> dict[str, int]:
+    """Downscale in place, aspect preserved. Returns final dims."""
+    from PIL import Image
+
+    with Image.open(path) as im:
+        w, h = im.size
+        if w > max_width:
+            im = im.resize((max_width, int(h * max_width / w)))
+            im.save(path)
+            w, h = im.size
+        return {"width": w, "height": h}
+
+
 def browser_take_screenshot(
     url: str,
     wait_seconds: int = 3,
     full_page: bool = True,
     viewport: dict[str, int] | None = None,
+    max_width: int | None = None,
 ) -> dict[str, Any]:
-    """Navigate + capture. Returns completed envelope, never raises."""
+    """Navigate + capture. Returns completed envelope, never raises.
+
+    max_width downscales the saved PNG (aspect preserved) so the file can
+    be attached directly to a vision context (most readers cap at 2000px).
+    None keeps full resolution for artifact evidence.
+    """
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -45,6 +64,9 @@ def browser_take_screenshot(
             page.wait_for_timeout(wait_seconds * 1000)
             path = _shot_path("shot")
             page.screenshot(path=str(path), full_page=full_page)
+            dims: dict[str, int] | None = None
+            if max_width is not None:
+                dims = _cap_width(path, max_width)
             result = {
                 "status": "completed",
                 "screenshot_path": str(path),
@@ -52,6 +74,8 @@ def browser_take_screenshot(
                 "final_url": page.url,
                 "viewport": viewport or DEFAULT_VIEWPORT,
             }
+            if dims is not None:
+                result["image_size"] = dims
             browser.close()
             return result
     except Exception as exc:

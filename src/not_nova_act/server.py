@@ -72,9 +72,12 @@ def browser_workflow_tool(definition_path: str) -> dict[str, Any]:
 
 @mcp.tool()
 def browser_take_screenshot_tool(url: str, full_page: bool = True,
-                                 wait_seconds: int = 3) -> dict[str, Any]:
-    """Navigate + capture. Free (Playwright only)."""
-    return browser_take_screenshot(url, wait_seconds, full_page)
+                                 wait_seconds: int = 3,
+                                 max_width: int | None = None) -> dict[str, Any]:
+    """Navigate + capture. Free (Playwright only). Pass max_width (e.g. 1280)
+    when you intend to attach the PNG to a vision context (readers cap ~2000px)."""
+    return browser_take_screenshot(url, wait_seconds, full_page,
+                                   viewport=None, max_width=max_width)
 
 
 @mcp.tool()

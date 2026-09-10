@@ -40,3 +40,14 @@ def test_error_envelope_never_raises():
     res = browser_take_screenshot("http://127.0.0.1:9/nonexistent", wait_seconds=0)
     assert res["status"] == "error"
     assert "error_message" in res
+
+
+def test_max_width_caps_reader_size():
+    from PIL import Image
+
+    res = browser_take_screenshot("https://example.com", wait_seconds=1,
+                                  max_width=800)
+    assert res["status"] == "completed", res
+    with Image.open(res["screenshot_path"]) as im:
+        assert im.size[0] <= 800, im.size
+    assert res["image_size"]["width"] <= 800
