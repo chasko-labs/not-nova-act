@@ -10,6 +10,19 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
+# SwiftShader-via-ANGLE: the deterministic headless-paint path. Playwright's
+# bundled chromium ships libvk_swiftshader.so, so this is self-contained and
+# needs no GPU driver/permission. Without these args headless chromium takes
+# the null/software path that never paints WebGL (canvas stays transparent).
+# Both chromium.launch() sites MUST use this shared list so they stay in sync.
+CHROMIUM_GL_ARGS = [
+    "--use-gl=angle",
+    "--use-angle=swiftshader",
+    "--enable-unsafe-swiftshader",
+    "--ignore-gpu-blocklist",
+    "--enable-webgl",
+]
+
 DEFAULT_VIEWPORT = {"width": 1280, "height": 800}
 SCREENSHOT_DIR = Path(os.environ.get("NOT_NOVA_ACT_SCREENSHOT_DIR", "/tmp/not-nova-act-shots"))
 HF_HUB_CACHE = Path(os.environ.get("HF_HUB_CACHE", str(Path.home() / ".cache/huggingface/hub")))
@@ -82,7 +95,7 @@ def browser_take_screenshot(
     """
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(args=CHROMIUM_GL_ARGS)
             page = browser.new_page(viewport=viewport or DEFAULT_VIEWPORT)
             page.goto(url, wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(wait_seconds * 1000)
@@ -169,7 +182,7 @@ def browser_check_page(
     """
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(args=CHROMIUM_GL_ARGS)
             page = browser.new_page(viewport=viewport or DEFAULT_VIEWPORT)
             page.goto(url, wait_until="networkidle", timeout=timeout_seconds * 1000)
             page.wait_for_timeout(wait_seconds * 1000)
