@@ -43,6 +43,34 @@ def _shot_path(prefix: str) -> Path:
     return SCREENSHOT_DIR / f"{prefix}-{int(time.time() * 1000)}.png"
 
 
+def _open_page(browser, viewport: dict[str, int] | None, mobile: bool):
+    """Open a page at the requested viewport, with true device emulation when
+    mobile=True. Shared by both entry points so the emulation logic lives once.
+
+    The plain new_page(viewport=...) path only resizes the LAYOUT window: CSS
+    `width=device-width` still resolves to the underlying SCREEN width (~1280),
+    so desktop @media rules match and (max-width:480px) never fires. That is
+    the "375 window, desktop layout" bug. Chromium needs is_mobile on the
+    CONTEXT for device-width to track the emulated viewport, so mobile requests
+    go through new_context(is_mobile=True, device_scale_factor, has_touch) and
+    return the owning context too (caller must close it, close is idempotent).
+
+    Returns (page, context_or_none). When mobile is False the context is None
+    and behavior is byte-for-byte the pre-existing new_page path (no regression
+    to the viewport or GL-args work).
+    """
+    vp = viewport or DEFAULT_VIEWPORT
+    if mobile:
+        context = browser.new_context(
+            viewport=vp,
+            is_mobile=True,
+            device_scale_factor=2,
+            has_touch=True,
+        )
+        return context.new_page(), context
+    return browser.new_page(viewport=vp), None
+
+
 def _cap_width(path: Path, max_width: int) -> dict[str, int]:
     """Downscale in place, aspect preserved. Returns final dims."""
     from PIL import Image
@@ -86,17 +114,24 @@ def browser_take_screenshot(
     full_page: bool = True,
     viewport: dict[str, int] | None = None,
     max_width: int | None = None,
+    mobile: bool = False,
 ) -> dict[str, Any]:
     """Navigate + capture. Returns completed envelope, never raises.
 
     max_width downscales the saved PNG (aspect preserved) so the file can
     be attached directly to a vision context (most readers cap at 2000px).
     None keeps full resolution for artifact evidence.
+
+    mobile=True emulates a real mobile device (is_mobile + device_scale_factor
+    + has_touch) so CSS `width=device-width` resolves to the requested viewport
+    width and (max-width) @media rules fire. Without it a 375 viewport only
+    resizes the window while device-width stays at the ~1280 screen width.
+    Default False keeps desktop capture behavior unchanged.
     """
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(args=CHROMIUM_GL_ARGS)
-            page = browser.new_page(viewport=viewport or DEFAULT_VIEWPORT)
+            page, context = _open_page(browser, viewport, mobile)
             page.goto(url, wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(wait_seconds * 1000)
             path = _shot_path("shot")
@@ -110,9 +145,12 @@ def browser_take_screenshot(
                 "page_title": page.title(),
                 "final_url": page.url,
                 "viewport": viewport or DEFAULT_VIEWPORT,
+                "mobile": mobile,
             }
             if dims is not None:
                 result["image_size"] = dims
+            if context is not None:
+                context.close()
             browser.close()
             return result
     except Exception as exc:
@@ -174,21 +212,29 @@ def browser_check_page(
     wait_seconds: int = 3,
     timeout_seconds: int = 120,
     viewport: dict[str, int] | None = None,
+    mobile: bool = False,
 ) -> dict[str, Any]:
     """Deterministic DOM assertions. No model. Returns completed envelope.
 
     viewport sets the render width (e.g. {"width": 375, "height": 812} for
     mobile). None keeps DEFAULT_VIEWPORT (1280x800) for backward compat.
+
+    mobile=True emulates a real mobile device so `width=device-width` and
+    (max-width) @media rules track the requested viewport width. Default
+    False keeps desktop behavior unchanged.
     """
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(args=CHROMIUM_GL_ARGS)
-            page = browser.new_page(viewport=viewport or DEFAULT_VIEWPORT)
+            page, context = _open_page(browser, viewport, mobile)
             page.goto(url, wait_until="networkidle", timeout=timeout_seconds * 1000)
             page.wait_for_timeout(wait_seconds * 1000)
             out = run_checks(page, checks)
+            if context is not None:
+                context.close()
             browser.close()
         out["url"] = url
+        out["mobile"] = mobile
         return out
     except Exception as exc:
         return {"status": "error", "error_message": str(exc)}
