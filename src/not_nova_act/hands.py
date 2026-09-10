@@ -160,12 +160,17 @@ def browser_check_page(
     checks: list[dict[str, Any]],
     wait_seconds: int = 3,
     timeout_seconds: int = 120,
+    viewport: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    """Deterministic DOM assertions. No model. Returns completed envelope."""
+    """Deterministic DOM assertions. No model. Returns completed envelope.
+
+    viewport sets the render width (e.g. {"width": 375, "height": 812} for
+    mobile). None keeps DEFAULT_VIEWPORT (1280x800) for backward compat.
+    """
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport=DEFAULT_VIEWPORT)
+            page = browser.new_page(viewport=viewport or DEFAULT_VIEWPORT)
             page.goto(url, wait_until="networkidle", timeout=timeout_seconds * 1000)
             page.wait_for_timeout(wait_seconds * 1000)
             out = run_checks(page, checks)

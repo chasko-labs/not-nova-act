@@ -34,7 +34,12 @@ mcp = FastMCP(
 
 @mcp.tool()
 def browser_session(starting_page: str, viewport: dict[str, int] | None = None) -> dict[str, Any]:
-    """Open/navigate a session starting point; returns viewport fixture."""
+    """Open/navigate a session starting point; returns the viewport fixture.
+
+    Stateless: this echoes the viewport but binds to no downstream state.
+    To render at a non-default viewport, pass the same viewport dict to each
+    browser_take_screenshot_tool / browser_check_page_tool call directly.
+    """
     from not_nova_act.hands import DEFAULT_VIEWPORT
 
     return {"status": "completed", "starting_page": starting_page,
@@ -74,17 +79,29 @@ def browser_workflow_tool(definition_path: str) -> dict[str, Any]:
 @mcp.tool()
 def browser_take_screenshot_tool(url: str, full_page: bool = True,
                                  wait_seconds: int = 3,
+                                 viewport: dict[str, int] | None = None,
                                  max_width: int | None = None) -> dict[str, Any]:
-    """Navigate + capture. Free (Playwright only). Pass max_width (e.g. 1280)
-    when you intend to attach the PNG to a vision context (readers cap ~2000px)."""
+    """Navigate + capture. Free (Playwright only).
+
+    viewport sets the RENDER width (e.g. {"width": 375, "height": 812} for
+    mobile, {"width": 768, "height": 1024} for tablet); None renders at
+    1280x800. max_width is a separate OUTPUT downscale cap (Pillow resize)
+    for attaching the PNG to a vision context (readers cap ~2000px) -- it
+    does not change what width the page renders at.
+    """
     return browser_take_screenshot(url, wait_seconds, full_page,
-                                   viewport=None, max_width=max_width)
+                                   viewport=viewport, max_width=max_width)
 
 
 @mcp.tool()
-def browser_check_page_tool(url: str, checks: list[dict[str, Any]]) -> dict[str, Any]:
-    """Deterministic DOM assertions. Free (no model)."""
-    return browser_check_page(url, checks)
+def browser_check_page_tool(url: str, checks: list[dict[str, Any]],
+                            viewport: dict[str, int] | None = None) -> dict[str, Any]:
+    """Deterministic DOM assertions. Free (no model).
+
+    viewport sets the render width (e.g. {"width": 375, "height": 812});
+    None renders at 1280x800.
+    """
+    return browser_check_page(url, checks, viewport=viewport)
 
 
 @mcp.tool()
