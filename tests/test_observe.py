@@ -15,7 +15,7 @@ def test_observe_has_shot_a11y_boxes():
         obs = observe_snapshot(page)
         browser.close()
     assert isinstance(obs["screenshot_png"], bytes) and len(obs["screenshot_png"]) > 0
-    assert isinstance(obs["a11y"], dict)
+    assert isinstance(obs["a11y"], str) and "Example Domain" in obs["a11y"]
     assert len(obs["candidates"]) > 0, "example.com has a link; expect candidates"
     assert all(set(c) == {"ref", "role", "name", "box"} for c in obs["candidates"])
     assert len(obs["candidates"]) <= 30

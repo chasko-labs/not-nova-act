@@ -5,6 +5,7 @@ from .hands import (
     browser_check_page,
     browser_list_models,
     browser_take_screenshot,
+    run_checks,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "browser_check_page",
     "browser_list_models",
     "browser_take_screenshot",
+    "run_checks",
 ]

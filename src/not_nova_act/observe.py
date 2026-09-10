@@ -21,9 +21,9 @@ def observe_snapshot(page, max_candidates: int = MAX_CANDIDATES) -> dict[str, An
     screenshot_png bytes, a11y snapshot, and refined candidate boxes."""
     shot = page.screenshot(full_page=False)
     try:
-        a11y = page.accessibility.snapshot() or {}
+        a11y = page.locator("body").aria_snapshot() or ""
     except Exception:
-        a11y = {}
+        a11y = ""
     candidates: list[dict[str, Any]] = []
     for role in INTERACTIVE_ROLES:
         if len(candidates) >= max_candidates:

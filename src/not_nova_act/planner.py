@@ -31,6 +31,10 @@ def _prompt(task: str, obs: dict[str, Any]) -> str:
     ]
     for c in obs.get("candidates", []):
         lines.append(f'  {c["ref"]}: {c["role"]} name="{c["name"]}" box={c["box"]}')
+    a11y = str(obs.get("a11y", ""))[:1500]
+    if a11y:
+        lines.append("Accessibility tree (structure reference):")
+        lines.append(a11y)
     lines.append("Reply with the JSON object only.")
     return "\n".join(lines)
 

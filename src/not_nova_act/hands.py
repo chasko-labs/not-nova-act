@@ -58,6 +58,16 @@ def browser_take_screenshot(
         return {"status": "error", "error_message": str(exc)}
 
 
+def run_checks(page, checks: list[dict[str, Any]]) -> dict[str, Any]:
+    """Run deterministic checks against an already-open page (session-aware
+    assertions — beyond the navigate-then-check shape)."""
+    results = [_run_check(page, c) for c in checks]
+    passed = sum(1 for r in results if r["passed"])
+    return {"status": "completed", "checks_passed": passed,
+            "checks_total": len(results), "all_passed": passed == len(results),
+            "results": results}
+
+
 def _run_check(page, check: dict[str, Any]) -> dict[str, Any]:
     ctype = check.get("type", "exists")
     selector = check.get("selector", "")
@@ -110,12 +120,10 @@ def browser_check_page(
             page = browser.new_page(viewport=DEFAULT_VIEWPORT)
             page.goto(url, wait_until="networkidle", timeout=timeout_seconds * 1000)
             page.wait_for_timeout(wait_seconds * 1000)
-            results = [_run_check(page, c) for c in checks]
+            out = run_checks(page, checks)
             browser.close()
-        passed = sum(1 for r in results if r["passed"])
-        return {"status": "completed", "url": url, "checks_passed": passed,
-                "checks_total": len(results), "all_passed": passed == len(results),
-                "results": results}
+        out["url"] = url
+        return out
     except Exception as exc:
         return {"status": "error", "error_message": str(exc)}
 
