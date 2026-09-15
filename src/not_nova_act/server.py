@@ -16,6 +16,7 @@ from not_nova_act.hands import (
     browser_list_models,
     browser_take_screenshot,
 )
+from not_nova_act.cognito_email_login import cognito_email_login_from_s3
 from not_nova_act.workflow import load_def, run_workflow
 
 PORT = int(os.environ.get("NOT_NOVA_ACT_PORT", "8171"))
@@ -27,7 +28,9 @@ mcp = FastMCP(
         "Local-first browser-use. browser_take_screenshot, browser_check_page, "
         "and browser_list_models are free (no model). browser_act and "
         "browser_act_get spend local qwen3-vl time; browser_workflow runs "
-        "YAML/JSON defs. browser_session opens a named starting point."
+        "YAML/JSON defs. cognito_email_login_tool uses a configured test "
+        "mailbox and ses-inbound s3 prefix; it never provisions aws resources. "
+        "browser_session opens a named starting point."
     ),
 )
 
@@ -77,6 +80,37 @@ def browser_workflow_tool(definition_path: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+def cognito_email_login_tool(
+    username: str,
+    otp_bucket: str,
+    otp_prefix: str,
+    recipient: str | None = None,
+    login_url: str = "https://bryanchasko.com/mom/login",
+    redirect_path: str = "/mom/",
+    aws_profile: str | None = "aerospaceug-admin",
+    aws_region: str = "us-west-2",
+    timeout_seconds: float = 180,
+    otp_timeout_seconds: float = 120,
+) -> dict[str, Any]:
+    """sign in a dedicated test user through the ses-inbound s3 mailbox"""
+    try:
+        return cognito_email_login_from_s3(
+            username=username,
+            otp_bucket=otp_bucket,
+            otp_prefix=otp_prefix,
+            recipient=recipient,
+            login_url=login_url,
+            redirect_path=redirect_path,
+            aws_profile=aws_profile,
+            aws_region=aws_region,
+            timeout_seconds=timeout_seconds,
+            otp_timeout_seconds=otp_timeout_seconds,
+        )
+    except Exception as exc:
+        return {"status": "error", "error_message": str(exc)[:500]}
+
+
+@mcp.tool()
 def browser_take_screenshot_tool(url: str, full_page: bool = True,
                                  wait_seconds: int = 3,
                                  viewport: dict[str, int] | None = None,
@@ -96,9 +130,10 @@ def browser_take_screenshot_tool(url: str, full_page: bool = True,
     a 375 viewport WITHOUT mobile=True only shrinks the window and still renders
     the desktop layout.
     """
-    return browser_take_screenshot(url, wait_seconds, full_page,
-                                   viewport=viewport, max_width=max_width,
-                                   mobile=mobile)
+    kwargs: dict[str, Any] = {"viewport": viewport, "max_width": max_width}
+    if mobile:
+        kwargs["mobile"] = True
+    return browser_take_screenshot(url, wait_seconds, full_page, **kwargs)
 
 
 @mcp.tool()
@@ -112,7 +147,10 @@ def browser_check_page_tool(url: str, checks: list[dict[str, Any]],
     device-width and (max-width) @media rules track the requested viewport
     width -- required to assert a mobile layout, not just a narrow window.
     """
-    return browser_check_page(url, checks, viewport=viewport, mobile=mobile)
+    kwargs: dict[str, Any] = {"viewport": viewport}
+    if mobile:
+        kwargs["mobile"] = True
+    return browser_check_page(url, checks, **kwargs)
 
 
 @mcp.tool()
