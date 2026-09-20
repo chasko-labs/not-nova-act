@@ -11,7 +11,7 @@ def test_seven_tools_registered():
         return sorted(t.name for t in tools)
 
     found = asyncio.run(names())
-    assert len(found) == 9, found
+    assert len(found) == 10, found
     assert "browser_take_screenshot_tool" in found, found
     assert "browser_assert_visual_tool" in found, found
     assert "browser_compress_shot_tool" in found, found
@@ -38,7 +38,14 @@ def _tool_by_name(name):
     return asyncio.run(_find())
 
 
-def test_screenshot_tool_exposes_viewport_param():
+def test_cognito_email_login_tool_exposes_mailbox_and_user_params():
+    tool = _tool_by_name("cognito_email_login_tool")
+    assert tool is not None
+    props = _tool_schema(tool).get("properties", {})
+    assert {"username", "otp_bucket", "otp_prefix"}.issubset(props), props
+
+
+
     tool = _tool_by_name("browser_take_screenshot_tool")
     assert tool is not None
     props = _tool_schema(tool).get("properties", {})
