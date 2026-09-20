@@ -94,6 +94,7 @@ Harness (`conftest`): viewport matrix `480×800 phone / 768×1024 tablet / 1280�
 - **T2 act**: NL click/typing task (e.g. fill form, submit); assert via `text_contains` + `visible`; screenshot_before/after diff shows change.
 - **T3 act_get**: structured extract (e.g. product list → `[{name, price}]`); pydantic validation passes; golden-file compare.
 - **T4 workflow**: 3-step def (goto → act → act_get) with shared context; all per-step screenshots+snapshots present; `expect(page).toHaveScreenshot(baseline)` visual parity on desktop viewport.
+- **R5 readability**: live-page review against the bryanchasko design system — DOM metrics (entry paragraph word cap, narrative-link presence) plus a local vision verdict (qwen3-vl:8b, 1–5 with defects). First use: favorite-typescript-videos module sections (DOM green, vision 2/5 → separators/rosters/links shipped, theme/cards layout still open).
 
 ## 8. Work breakdown (dependency order)
 
