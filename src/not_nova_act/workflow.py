@@ -18,6 +18,13 @@ class WorkflowStep:
     schema: dict[str, str] | None = None
     max_steps: int = 6
     on_error: str = "fail"  # fail | continue
+    # render width per step (e.g. {"width": 375, "height": 812}); None keeps
+    # the 1280x800 desktop default. mobile=True emulates a real mobile device
+    # so width=device-width and (max-width) @media rules track the viewport.
+    viewport: dict[str, int] | None = None
+    mobile: bool = False
+    wait_seconds: int = 3
+    max_width: int | None = None
 
 
 def _build_model(schema: dict[str, str]):
@@ -47,9 +54,16 @@ def run_workflow(defn: dict[str, Any], run_id: str | None = None) -> dict[str, A
                                    if k in WorkflowStep.__dataclass_fields__})
             url = step.url or context["starting_page"]
             if step.kind == "check":
-                out = browser_check_page(url, step.checks)
+                out = browser_check_page(url, step.checks,
+                                           wait_seconds=step.wait_seconds,
+                                           viewport=step.viewport,
+                                           mobile=step.mobile)
             elif step.kind == "screenshot":
-                out = browser_take_screenshot(url)
+                out = browser_take_screenshot(url,
+                                                  wait_seconds=step.wait_seconds,
+                                                  viewport=step.viewport,
+                                                  max_width=step.max_width,
+                                                  mobile=step.mobile)
             elif step.kind == "assert":
                 key, want = step.task.split("==", 1)
                 got = str(context.get(key.strip(), ""))
@@ -57,11 +71,13 @@ def run_workflow(defn: dict[str, Any], run_id: str | None = None) -> dict[str, A
                        "got": got, "want": want.strip()}
             elif step.kind == "act":
                 out = browser_act(step.task, url, max_steps=step.max_steps,
+                                  viewport=step.viewport, mobile=step.mobile,
                                   run_id=f"{run_id}-s{i}")
             elif step.kind == "act_get":
                 model = _build_model(step.schema or {})
                 out = browser_act_get(step.task, url, model,
                                       max_steps=step.max_steps,
+                                      viewport=step.viewport, mobile=step.mobile,
                                       run_id=f"{run_id}-s{i}")
                 if out.get("status") == "completed":
                     context.update(out.get("data", {}))

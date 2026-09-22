@@ -115,7 +115,9 @@ def extract_structured(task: str, obs: dict[str, Any], schema: type[BaseModel],
 
 def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
                     max_steps: int = 6, timeout_seconds: int = 420,
-                    run_id: str | None = None) -> dict[str, Any]:
+                    run_id: str | None = None,
+                    viewport: dict[str, int] | None = None,
+                    mobile: bool = False) -> dict[str, Any]:
     """Navigate (planner-driven, ≤3 steps), then extract + validate + repair.
     Envelope return, never raises."""
     import uuid
@@ -123,7 +125,7 @@ def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
     from playwright.sync_api import sync_playwright
 
     from .act import _dispatch
-    from .hands import DEFAULT_VIEWPORT
+    from .hands import _open_page
     from .locks import Semaphore, acquire_gpu_lock, get_valkey, release_gpu_lock
     from .observe import log_step, observe_snapshot
     from .planner import plan_action
@@ -138,7 +140,7 @@ def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport=DEFAULT_VIEWPORT)
+            page, context = _open_page(browser, viewport, mobile)
             page.goto(starting_page, wait_until="networkidle", timeout=60000)
             for step in range(min(max_steps, 3)):
                 if time.time() > deadline:
@@ -159,6 +161,8 @@ def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
                 dom_text = page.locator("body").inner_text()[:2000]
             except Exception:
                 dom_text = ""
+            if context is not None:
+                context.close()
             browser.close()
         try:
             parsed = extract_structured(task, obs, schema, dom_text=dom_text)

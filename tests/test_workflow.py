@@ -30,3 +30,26 @@ def _write(tmp_path):
     p = tmp_path / "wf.yaml"
     p.write_text(DEF)
     return str(p)
+
+
+def test_workflow_passes_viewport_and_mobile_to_steps():
+    """Per-step render width: mobile check sees innerWidth 375, and a
+    768-wide screenshot step completes. Steps without viewport keys keep
+    the 1280 desktop default (covered by test_workflow_shares_context)."""
+    defn = {
+        "starting_page": "https://example.com",
+        "steps": [
+            {"kind": "check",
+             "viewport": {"width": 375, "height": 812},
+             "mobile": True,
+             "checks": [
+                 {"type": "evaluate", "expression": "window.innerWidth",
+                  "expected": 375,
+                  "description": "mobile emulation tracks viewport width"},
+             ]},
+            {"kind": "screenshot", "viewport": {"width": 768, "height": 900}},
+        ],
+    }
+    res = run_workflow(defn)
+    assert res["status"] == "completed", res
+    assert [r["kind"] for r in res["results"]] == ["check", "screenshot"]
