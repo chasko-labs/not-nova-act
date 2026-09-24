@@ -290,6 +290,40 @@ def _run_check(page, check: dict[str, Any]) -> dict[str, Any]:
                 "passed": False, "actual": f"check raised: {exc}"}
 
 
+def _run_setup_actions(page, actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deterministic pre-check interaction. No model. Each action is one of:
+    {click: selector} — click the first match (timeout ms, default 30000);
+    {wait_for: selector, timeout: ms} — wait until visible (default 120000);
+    {sleep: seconds} — fixed settle pause.
+    Stops at the first failing action; the failure is recorded, checks still run.
+    """
+    log: list[dict[str, Any]] = []
+    for action in actions or []:
+        entry: dict[str, Any] = {"action": action}
+        try:
+            if "click" in action:
+                page.locator(action["click"]).first.click(
+                    timeout=int(action.get("timeout", 30000)))
+                entry["ok"] = True
+            elif "wait_for" in action:
+                page.wait_for_selector(action["wait_for"], state="visible",
+                                       timeout=int(action.get("timeout", 120000)))
+                entry["ok"] = True
+            elif "sleep" in action:
+                page.wait_for_timeout(int(float(action["sleep"]) * 1000))
+                entry["ok"] = True
+            else:
+                entry["ok"] = False
+                entry["error"] = "unknown setup action"
+        except Exception as exc:
+            entry["ok"] = False
+            entry["error"] = str(exc)[:200]
+        log.append(entry)
+        if not entry["ok"]:
+            break
+    return log
+
+
 def browser_check_page(
     url: str,
     checks: list[dict[str, Any]],
@@ -297,6 +331,8 @@ def browser_check_page(
     timeout_seconds: int = 120,
     viewport: dict[str, int] | None = None,
     mobile: bool = False,
+    setup: dict[str, Any] | None = None,
+    extension_path: str | None = None,
 ) -> dict[str, Any]:
     """Deterministic DOM assertions. No model. Returns completed envelope.
     extension_path loads an unpacked MV3 extension (allowlisted root only).
@@ -307,6 +343,10 @@ def browser_check_page(
     mobile=True emulates a real mobile device so `width=device-width` and
     (max-width) @media rules track the requested viewport width. Default
     False keeps desktop behavior unchanged.
+
+    setup (optional) drives the page to a beat before asserting, still with
+    no model: {"storage": {k: v}} seeds localStorage via init script before
+    navigation; "actions" runs _run_setup_actions after the initial wait.
     """
     try:
         import json as _json
@@ -315,9 +355,17 @@ def browser_check_page(
             browser = _launch(p, CHROMIUM_GL_ARGS,
                         extension_path=extension_path)
             page, context = _open_page(browser, viewport, mobile)
+            seed = ((setup or {}).get("storage", {})) or {}
+            if seed:
+                page.add_init_script(
+                    "Object.entries(" + _json.dumps(seed) + ").forEach(([k, v]) => {"
+                    " try { localStorage.setItem(k, String(v)); } catch (e) {} });")
             page.goto(url, wait_until="networkidle", timeout=timeout_seconds * 1000)
             page.wait_for_timeout(wait_seconds * 1000)
+            setup_log = _run_setup_actions(page, ((setup or {}).get("actions", [])) or [])
             out = run_checks(page, checks)
+            out["setup"] = setup_log
+            out["setup_ok"] = all(e.get("ok") for e in setup_log)
             if context is not None:
                 context.close()
             browser.close()

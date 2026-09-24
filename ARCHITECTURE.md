@@ -4,11 +4,11 @@
 
 Local-first rebuild of Nova Act browser-use API. No AWS, no API keys, no hosted model calls by default.
 
-- Planner/vision: `qwen3-vl:8b` via Ollama `localhost:11434` (chat/completions, vision JSON mode).
-- Reasoner fallback: `glimmer-30b` via supervisor `:8181` (OpenAI-compat) for multi-step plans, disambiguation, `act_get` repair.
-- Grounding assist (cached, no download): CLIP `vit-base`/`large` + `dinov2-small` from HF cache for element relevance re-rank only.
-- Hands: Playwright sync API only.
-- Host patterns reused: `fc-pool` Firecracker microVM shape, `valkey gpu_lock:16379` GPU serialization, dockerized MCP server layout under `heraldstack-mcp/servers`, tool surface from `servers/nova-mcp/microvm/browser_tools.py`.
+- Sees and plans: `qwen3-vl:8b` served locally by Ollama (`localhost:11434`), answering in structured JSON the loop can act on.
+- Second opinion: `glimmer-30b` (local, OpenAI-compatible API) re-checks multi-step plans, resolves ambiguity, and repairs extractions.
+- Element matching only: cached CLIP + dinov2 weights rank which on-screen element a description refers to; they never plan.
+- Hands: clicks and types through Playwright (synchronous API) only.
+- Sharing: one actor at a time — a GPU lock plus a concurrency semaphore serialize browser work across callers.
 
 Repo: `chasko-labs/not-nova-act`. Concrete deliverable, no filler.
 
@@ -66,11 +66,11 @@ while steps < max_steps and not done and within timeout_seconds:
 
 ## 5. Hosting shape
 
-- **Runtime**: local process first; `fc-pool` microVM optional for isolation (stable public port + lazy cold-start backend pattern from `glimmer_supervisor.py`).
-- **Models**: Ollama `:11434` (qwen3-vl:8b); supervisor `:8181` (glimmer-30b) with VRAM floor check, idle reaper (300s), single-flight mutex, double-detached backend (pidfile-tracked).
-- **MCP server**: FastMCP streamable-http, dockerized under `heraldstack-mcp/servers` layout; pure-Playwright tools still take semaphore slots (parity with nova-mcp).
-- **State**: valkey `127.0.0.1:16379`; streams for step logs, `gpu_lock` for GPU, `nova-act:semaphore` for concurrency.
-- **Auth**: none locally. IAM path exists only as disabled fallback.
+- **Runtime**: a plain local process first; an isolated-microVM mode exists for untrusted pages.
+- **Models**: Ollama `:11434` (qwen3-vl:8b); a supervisor on `:8181` serves `glimmer-30b`, checking free video memory before loading, unloading after 5 idle minutes, serving one request at a time, and running detached so it survives logout.
+- **MCP server**: FastMCP over streaming HTTP in a container; even the model-free tools take a concurrency slot so parallel callers queue instead of colliding.
+- **State**: a local valkey store keeps step logs, the GPU lock, and the concurrency semaphore.
+- **Auth**: none needed on your own machine.
 
 ## 6. MCP tool map (7 tools)
 
@@ -85,6 +85,12 @@ while steps < max_steps and not done and within timeout_seconds:
 | 7   | `browser_list_models`     | local registry: ollama list + HF cache scan + alias map                                     | none                     |
 
 Envelopes `{completed|rate_limited|timeout|error}`; never raise.
+
+`browser_act`, `browser_act_get`, `browser_take_screenshot`, and
+`browser_check_page` also take an optional `extension_path` (unpacked MV3
+dir under `$NOT_NOVA_ACT_EXTENSION_ROOT`) that loads an extension into the
+driven browser for `chrome-extension://` URLs. See
+[docs/extension-testing.md](./docs/extension-testing.md).
 
 ## 7. Eval battery (`eval/`, parity proof)
 

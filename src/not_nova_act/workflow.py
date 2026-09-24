@@ -25,6 +25,7 @@ class WorkflowStep:
     mobile: bool = False
     wait_seconds: int = 3
     max_width: int | None = None
+    setup: dict[str, Any] | None = None
 
 
 def _build_model(schema: dict[str, str]):
@@ -57,7 +58,8 @@ def run_workflow(defn: dict[str, Any], run_id: str | None = None) -> dict[str, A
                 out = browser_check_page(url, step.checks,
                                            wait_seconds=step.wait_seconds,
                                            viewport=step.viewport,
-                                           mobile=step.mobile)
+                                           mobile=step.mobile,
+                                           setup=step.setup)
             elif step.kind == "screenshot":
                 out = browser_take_screenshot(url,
                                                   wait_seconds=step.wait_seconds,

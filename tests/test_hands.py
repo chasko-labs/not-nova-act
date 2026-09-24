@@ -190,3 +190,55 @@ def test_desktop_1280_does_not_match_mobile_media_query():
     assert res["status"] == "completed", res
     assert res["mobile"] is False, res
     assert res["all_passed"], res["results"]
+
+
+def test_check_page_setup_clicks_before_asserting():
+    html = (
+        "data:text/html,"
+        "<button id='go' onclick=\"setTimeout(() => {"
+        "document.getElementById('late').textContent='ready'; }, 300);\">go</button>"
+        "<div id='late' style='min-height:10px'></div>"
+    )
+    res = browser_check_page(
+        html,
+        [
+            {"type": "text_eq", "selector": "#late", "expected": "ready",
+             "description": "setup click drove the beat"},
+        ],
+        wait_seconds=0,
+        setup={"actions": [
+            {"click": "#go"},
+            {"wait_for": "#late", "timeout": 5000},
+            {"sleep": 1},
+        ]},
+    )
+    assert res["status"] == "completed", res
+    assert res["setup_ok"], res["setup"]
+    assert res["all_passed"], res["results"]
+
+
+def test_check_page_setup_seeds_storage():
+    res = browser_check_page(
+        "https://example.com",
+        [
+            {"type": "evaluate", "expression": "localStorage.getItem('ss-intro-seen')",
+             "expected": "1", "description": "storage seeded before navigation"},
+        ],
+        wait_seconds=1,
+        setup={"storage": {"ss-intro-seen": "1"}},
+    )
+    assert res["status"] == "completed", res
+    assert res["setup_ok"], res["setup"]
+    assert res["all_passed"], res["results"]
+
+
+def test_check_page_setup_failure_recorded_not_raised():
+    res = browser_check_page(
+        "https://example.com",
+        [{"type": "exists", "selector": "h1", "description": "page still checked"}],
+        wait_seconds=1,
+        setup={"actions": [{"click": "#no-such-button", "timeout": 1000}]},
+    )
+    assert res["status"] == "completed", res
+    assert res["setup_ok"] is False, res["setup"]
+    assert res["all_passed"], res["results"]
