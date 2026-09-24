@@ -30,6 +30,70 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 
 ALIAS_MAP = {"latest-vision": "qwen3-vl:8b"}
 
+# Unpacked-extension allowlist root. Loading an extension is code execution in
+# the driven browser, so MCP callers may only name dirs under this root (set
+# by the service operator, e.g. NOT_NOVA_ACT_EXTENSION_ROOT=/path/to/projects).
+# Empty/disabled by default: extension_path params are rejected until set.
+EXTENSION_ROOT = os.environ.get("NOT_NOVA_ACT_EXTENSION_ROOT", "")
+
+
+def _resolve_extension(extension_path: str | None) -> Path | None:
+    """Validate an unpacked-extension dir. None/empty returns None (off).
+
+    Otherwise the path (absolute, or relative to EXTENSION_ROOT) must resolve
+    inside EXTENSION_ROOT and contain manifest.json. Anything else raises
+    ValueError; callers run inside try blocks that wrap it into error
+    envelopes, so it never raises to MCP callers.
+    """
+    if not extension_path:
+        return None
+    if not EXTENSION_ROOT:
+        raise ValueError(
+            "extension loading is disabled: the operator must set "
+            "NOT_NOVA_ACT_EXTENSION_ROOT to an allowlisted directory")
+    root = Path(EXTENSION_ROOT).resolve()
+    if not root.is_dir():
+        raise ValueError(
+            f"NOT_NOVA_ACT_EXTENSION_ROOT={root} is not a directory")
+    cand = Path(extension_path)
+    if not cand.is_absolute():
+        cand = root / cand
+    cand = cand.resolve()
+    if cand != root and root not in cand.parents:
+        raise ValueError(f"extension {cand} is outside allowlisted root {root}")
+    if not (cand / "manifest.json").is_file():
+        raise ValueError(f"no manifest.json in {cand}")
+    return cand
+
+
+def _launch(p, args: list[str] | None = None,
+            extension_path: str | None = None):
+    """Launch Chromium, or open a persistent context with an extension loaded.
+
+    Returns a Browser normally, or the persistent BrowserContext when an
+    extension resolves. Both expose new_page() and close(), so existing
+    call sites (including _open_page + browser.close()) work unchanged —
+    except mobile emulation, which needs context-creation flags and is
+    rejected for extension contexts (see _open_page).
+    """
+    ext = _resolve_extension(extension_path)
+    if ext is None:
+        if args is None:
+            return p.chromium.launch()
+        return p.chromium.launch(args=args)
+    # headless=False + --headless=new: full Chromium in new headless mode.
+    # The headless-shell binary Playwright uses for headless=True cannot load
+    # extensions at all (chrome-extension:// aborts); new headless can, and
+    # needs no X server.
+    return p.chromium.launch_persistent_context(
+        "",
+        headless=False,
+        args=["--headless=new",
+              *CHROMIUM_GL_ARGS,
+              f"--disable-extensions-except={ext}",
+              f"--load-extension={ext}"],
+    )
+
 
 @dataclass
 class StepResult:
@@ -58,7 +122,16 @@ def _open_page(browser, viewport: dict[str, int] | None, mobile: bool):
     Returns (page, context_or_none). When mobile is False the context is None
     and behavior is byte-for-byte the pre-existing new_page path (no regression
     to the viewport or GL-args work).
+
+    mobile=True on an extension-loaded (persistent) context raises ValueError:
+    is_mobile is a context-creation flag and cannot apply post-hoc.
+    A persistent context's new_page() also takes no viewport keyword, so an
+    explicit viewport is applied post-hoc via set_viewport_size.
     """
+    is_persistent = not hasattr(browser, "new_context")
+    if mobile and is_persistent:
+        raise ValueError(
+            "mobile emulation is unavailable when an extension is loaded")
     vp = viewport or DEFAULT_VIEWPORT
     if mobile:
         context = browser.new_context(
@@ -68,6 +141,11 @@ def _open_page(browser, viewport: dict[str, int] | None, mobile: bool):
             has_touch=True,
         )
         return context.new_page(), context
+    if is_persistent:
+        page = browser.new_page()
+        if viewport is not None:
+            page.set_viewport_size(vp)
+        return page, None
     return browser.new_page(viewport=vp), None
 
 
@@ -115,6 +193,7 @@ def browser_take_screenshot(
     viewport: dict[str, int] | None = None,
     max_width: int | None = None,
     mobile: bool = False,
+    extension_path: str | None = None,
 ) -> dict[str, Any]:
     """Navigate + capture. Returns completed envelope, never raises.
 
@@ -127,10 +206,15 @@ def browser_take_screenshot(
     width and (max-width) @media rules fire. Without it a 375 viewport only
     resizes the window while device-width stays at the ~1280 screen width.
     Default False keeps desktop capture behavior unchanged.
+
+    extension_path loads an unpacked MV3 extension into the driven browser
+    (must resolve under $NOT_NOVA_ACT_EXTENSION_ROOT); enables
+    chrome-extension:// URLs. None keeps today's plain browser.
     """
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(args=CHROMIUM_GL_ARGS)
+            browser = _launch(p, CHROMIUM_GL_ARGS,
+                        extension_path=extension_path)
             page, context = _open_page(browser, viewport, mobile)
             page.goto(url, wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(wait_seconds * 1000)
@@ -215,6 +299,7 @@ def browser_check_page(
     mobile: bool = False,
 ) -> dict[str, Any]:
     """Deterministic DOM assertions. No model. Returns completed envelope.
+    extension_path loads an unpacked MV3 extension (allowlisted root only).
 
     viewport sets the render width (e.g. {"width": 375, "height": 812} for
     mobile). None keeps DEFAULT_VIEWPORT (1280x800) for backward compat.
@@ -224,8 +309,11 @@ def browser_check_page(
     False keeps desktop behavior unchanged.
     """
     try:
+        import json as _json
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(args=CHROMIUM_GL_ARGS)
+            browser = _launch(p, CHROMIUM_GL_ARGS,
+                        extension_path=extension_path)
             page, context = _open_page(browser, viewport, mobile)
             page.goto(url, wait_until="networkidle", timeout=timeout_seconds * 1000)
             page.wait_for_timeout(wait_seconds * 1000)

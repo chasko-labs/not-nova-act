@@ -61,7 +61,8 @@ def test_screenshot_wrapper_threads_viewport(monkeypatch):
 
     captured = {}
 
-    def fake_take(url, wait_seconds, full_page, viewport=None, max_width=None):
+    def fake_take(url, wait_seconds, full_page, viewport=None, max_width=None,
+                    **_kwargs):
         captured.update(url=url, viewport=viewport, max_width=max_width)
         return {"status": "completed"}
 
@@ -76,7 +77,7 @@ def test_check_page_wrapper_threads_viewport(monkeypatch):
 
     captured = {}
 
-    def fake_check(url, checks, viewport=None):
+    def fake_check(url, checks, viewport=None, **_kwargs):
         captured.update(url=url, viewport=viewport)
         return {"status": "completed"}
 
@@ -91,10 +92,46 @@ def test_screenshot_wrapper_defaults_viewport_none(monkeypatch):
 
     captured = {}
 
-    def fake_take(url, wait_seconds, full_page, viewport=None, max_width=None):
+    def fake_take(url, wait_seconds, full_page, viewport=None, max_width=None,
+                    **_kwargs):
         captured.update(viewport=viewport)
         return {"status": "completed"}
 
     monkeypatch.setattr(srv, "browser_take_screenshot", fake_take)
     srv.browser_take_screenshot_tool("https://example.com")
     assert captured["viewport"] is None, captured
+
+
+def test_screenshot_wrapper_threads_extension_path(monkeypatch):
+    """The tool wrapper must forward extension_path (opt-in extension load)."""
+    import not_nova_act.server as srv
+
+    captured = {}
+
+    def fake_take(url, wait_seconds, full_page, extension_path=None, **_kwargs):
+        captured.update(extension_path=extension_path)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(srv, "browser_take_screenshot", fake_take)
+    srv.browser_take_screenshot_tool("https://example.com",
+                                     extension_path="my-ext")
+    assert captured["extension_path"] == "my-ext", captured
+
+
+def test_act_get_wrapper_threads_extension_path(monkeypatch):
+    """The act_get wrapper must forward extension_path to browser_act_get."""
+    import not_nova_act.server as srv
+
+    captured = {}
+
+    def fake_get(task, starting_page, model, max_steps,
+                 extension_path=None, **_kwargs):
+        captured.update(extension_path=extension_path)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(srv, "browser_act_get", fake_get)
+    srv.browser_act_get_tool("read the heading",
+                             "https://example.com",
+                             schema={"heading": "str"},
+                             extension_path="my-ext")
+    assert captured["extension_path"] == "my-ext", captured

@@ -117,7 +117,8 @@ def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
                     max_steps: int = 6, timeout_seconds: int = 420,
                     run_id: str | None = None,
                     viewport: dict[str, int] | None = None,
-                    mobile: bool = False) -> dict[str, Any]:
+                    mobile: bool = False,
+                    extension_path: str | None = None) -> dict[str, Any]:
     """Navigate (planner-driven, ≤3 steps), then extract + validate + repair.
     Envelope return, never raises."""
     import uuid
@@ -125,7 +126,7 @@ def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
     from playwright.sync_api import sync_playwright
 
     from .act import _dispatch
-    from .hands import _open_page
+    from .hands import _launch, _open_page
     from .locks import Semaphore, acquire_gpu_lock, get_valkey, release_gpu_lock
     from .observe import log_step, observe_snapshot
     from .planner import plan_action
@@ -139,7 +140,7 @@ def browser_act_get(task: str, starting_page: str, schema: type[BaseModel],
     steps: list[dict[str, Any]] = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = _launch(p, extension_path=extension_path)
             page, context = _open_page(browser, viewport, mobile)
             page.goto(starting_page, wait_until="networkidle", timeout=60000)
             for step in range(min(max_steps, 3)):

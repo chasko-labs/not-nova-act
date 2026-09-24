@@ -27,7 +27,10 @@ mcp = FastMCP(
         "Local-first browser-use. browser_take_screenshot, browser_check_page, "
         "and browser_list_models are free (no model). browser_act and "
         "browser_act_get spend local qwen3-vl time; browser_workflow runs "
-        "YAML/JSON defs. browser_session opens a named starting point."
+        "YAML/JSON defs. browser_session opens a named starting point. "
+        "extension_path (act/act_get/screenshot/check_page) loads an unpacked "
+        "MV3 extension for chrome-extension:// URLs; the dir must sit under "
+        "$NOT_NOVA_ACT_EXTENSION_ROOT or the call errors."
     ),
 )
 
@@ -48,21 +51,25 @@ def browser_session(starting_page: str, viewport: dict[str, int] | None = None) 
 
 @mcp.tool()
 def browser_act_tool(task: str, starting_page: str, max_steps: int = 10,
-                     timeout_seconds: int = 300) -> dict[str, Any]:
+                     timeout_seconds: int = 300,
+                     extension_path: str | None = None) -> dict[str, Any]:
     """One NL action step loop (plan+dispatch+verify). Model cost: qwen."""
-    return browser_act(task, starting_page, max_steps, timeout_seconds)
+    return browser_act(task, starting_page, max_steps, timeout_seconds,
+                       extension_path=extension_path)
 
 
 @mcp.tool()
 def browser_act_get_tool(task: str, starting_page: str,
                          schema: dict[str, str] | None = None,
-                         max_steps: int = 6) -> dict[str, Any]:
+                         max_steps: int = 6,
+                         extension_path: str | None = None) -> dict[str, Any]:
     """NL extract to schema-constrained JSON. Model cost: qwen (+repair)."""
     from not_nova_act.workflow import _build_model
 
     try:
         model = _build_model(schema or {"text": "str"})
-        return browser_act_get(task, starting_page, model, max_steps)
+        return browser_act_get(task, starting_page, model, max_steps,
+                               extension_path=extension_path)
     except Exception as exc:
         return {"status": "error", "error_message": str(exc)[:300]}
 
@@ -81,7 +88,8 @@ def browser_take_screenshot_tool(url: str, full_page: bool = True,
                                  wait_seconds: int = 3,
                                  viewport: dict[str, int] | None = None,
                                  max_width: int | None = None,
-                                 mobile: bool = False) -> dict[str, Any]:
+                                 mobile: bool = False,
+                                 extension_path: str | None = None) -> dict[str, Any]:
     """Navigate + capture. Free (Playwright only).
 
     viewport sets the RENDER width (e.g. {"width": 375, "height": 812} for
@@ -98,13 +106,15 @@ def browser_take_screenshot_tool(url: str, full_page: bool = True,
     """
     return browser_take_screenshot(url, wait_seconds, full_page,
                                    viewport=viewport, max_width=max_width,
-                                   mobile=mobile)
+                                   mobile=mobile,
+                                   extension_path=extension_path)
 
 
 @mcp.tool()
 def browser_check_page_tool(url: str, checks: list[dict[str, Any]],
                             viewport: dict[str, int] | None = None,
-                            mobile: bool = False) -> dict[str, Any]:
+                            mobile: bool = False,
+                            extension_path: str | None = None) -> dict[str, Any]:
     """Deterministic DOM assertions. Free (no model).
 
     viewport sets the render width (e.g. {"width": 375, "height": 812});
@@ -112,7 +122,8 @@ def browser_check_page_tool(url: str, checks: list[dict[str, Any]],
     device-width and (max-width) @media rules track the requested viewport
     width -- required to assert a mobile layout, not just a narrow window.
     """
-    return browser_check_page(url, checks, viewport=viewport, mobile=mobile)
+    return browser_check_page(url, checks, viewport=viewport, mobile=mobile,
+                                extension_path=extension_path)
 
 
 @mcp.tool()

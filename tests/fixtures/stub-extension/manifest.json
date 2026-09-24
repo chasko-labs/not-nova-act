@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "not-nova-act stub",
+  "version": "0.0.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0snAmxy+5cIvO+LcvFbb74kBSA8kWHG3PxVhOoZ5ZE1o8qUterTn1QggRdDrPrT4ztO3QQw+sheQl9tLTaPFqhotz0sgxB/8mrS5CXWVQqNd2XYLK3EhWK1yyPvyzaMWHgelNYwfyQ3jiJlIRPHYq0p3w0Za9XsVeLfAw4N9LWdWvwtMISy6VoI+CX+s+QLwjWNQpa7Io3JX4uhebJxlWIMdi+tdBM0tqvxFP1KVukTpJ5g+7zdKMNdnEQypsoR3zU8AePtBFCZptNuM16L8psD859MoNxgF724ZTgINmUzvR2e6sIEoOCFC3JmIUINcYXOr61VuEVy25RpUgITzRwIDAQAB",
+  "background": {
+    "service_worker": "sw.js"
+  }
+}

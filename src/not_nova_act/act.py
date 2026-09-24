@@ -7,7 +7,7 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
-from .hands import _open_page
+from .hands import _launch, _open_page
 from .locks import Semaphore, acquire_gpu_lock, get_valkey, release_gpu_lock
 from .observe import log_step, observe_snapshot
 from .planner import plan_action
@@ -47,11 +47,13 @@ def _dispatch(page, plan, candidates: list[dict[str, Any]]) -> dict[str, Any]:
 def browser_act(task: str, starting_page: str, max_steps: int = 10,
                 timeout_seconds: int = 300, run_id: str | None = None,
                 viewport: dict[str, int] | None = None,
-                mobile: bool = False) -> dict[str, Any]:
+                mobile: bool = False,
+                extension_path: str | None = None) -> dict[str, Any]:
     """One NL task, bounded loop. Envelope return, never raises.
 
     viewport/mobile select the render width per call (mobile=True emulates
-    a real mobile device). None/False keeps the 1280x800 desktop default."""
+    a real mobile device). None/False keeps the 1280x800 desktop default.
+    extension_path loads an unpacked MV3 extension (allowlisted root only)."""
     import uuid
 
     run_id = run_id or f"act-{uuid.uuid4().hex[:8]}"
@@ -63,7 +65,7 @@ def browser_act(task: str, starting_page: str, max_steps: int = 10,
     steps: list[dict[str, Any]] = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = _launch(p, extension_path=extension_path)
             page, context = _open_page(browser, viewport, mobile)
             page.goto(starting_page, wait_until="networkidle", timeout=60000)
             before = page.screenshot(full_page=False)
