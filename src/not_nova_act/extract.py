@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 GLIMMER_URL = os.environ.get("GLIMMER_URL", "http://127.0.0.1:8181")
 GLIMMER_MODEL = os.environ.get("NOT_NOVA_ACT_REPAIR_MODEL", "glimmer")
+OLLAMA_TIMEOUT = int(os.environ.get("NOT_NOVA_ACT_OLLAMA_TIMEOUT", "280"))
 
 
 def _extract_json(text: str) -> str:
@@ -41,14 +42,30 @@ def _unload_planner(model: str) -> None:
         pass
 
 
+def salvage_json(raw: str, schema: type[BaseModel]) -> BaseModel:
+    """Deterministic repair for mechanical breaks (trailing commas).
+    No model call. Raises on failure."""
+    import re
+
+    text = _extract_json(raw)
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    return schema.model_validate_json(text)
+
+
 def qwen_repair(raw: str, schema: type[BaseModel],
-                timeout: int = 280) -> BaseModel:
-    """Second-pass coercion via the planner model (fast, local GPU).
-    Raises on failure."""
+                timeout: int | None = None) -> BaseModel:
+    """Second-pass coercion: deterministic salvage first, planner model
+    (fast, local GPU) second. Raises on failure."""
     import httpx
 
     from .planner import OLLAMA_URL, PLANNER_MODEL
 
+    try:
+        return salvage_json(raw, schema)
+    except Exception:
+        pass
+    if timeout is None:
+        timeout = OLLAMA_TIMEOUT
     prompt = ("Fix this into valid JSON matching the schema "
               f"{json.dumps(schema.model_json_schema())}. "
               "Output ONLY the fixed JSON object, no prose.\n"

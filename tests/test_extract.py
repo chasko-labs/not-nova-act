@@ -41,6 +41,34 @@ def test_qwen_repair_fixes_trailing_comma():
     assert fixed.products[0].name == "koppar Mug"
 
 
+def test_qwen_repair_trailing_comma_needs_no_model():
+    """Deterministic salvage must win: fail loudly on any network call."""
+    import httpx
+
+    real_post = httpx.post
+
+    def no_model(*a, **k):
+        raise AssertionError("model called for a mechanical fix")
+
+    httpx.post = no_model
+    try:
+        fixed = qwen_repair(
+            '{"products": [{"name": "koppar Mug", "price": "$12"},]}',
+            Catalog)
+    finally:
+        httpx.post = real_post
+    assert fixed.products[0].price == "$12"
+
+
+def test_salvage_json_rejects_garbage():
+    import pytest
+
+    from not_nova_act.extract import salvage_json
+
+    with pytest.raises(Exception):
+        salvage_json("garbage", Catalog)
+
+
 def test_glimmer_repair_parses_backend_payload():
     """Logic-only: canned backend payload through the parse path, so the
     shared-service flakiness (idle reaping, 0.36 tok/s) cannot fail the
