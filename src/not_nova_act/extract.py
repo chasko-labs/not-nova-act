@@ -124,7 +124,7 @@ def extract_structured(task: str, obs: dict[str, Any], schema: type[BaseModel],
     prompt = "\n".join(lines)
     body = {"model": PLANNER_MODEL, "prompt": prompt,
             "images": [_shrink_for_planning(obs["screenshot_png"])],
-            "stream": False, "options": {"num_ctx": 8192, "think": False}}
+            "stream": False, "options": {"num_ctx": 4096, "think": False}}
     r = httpx.post(f"{OLLAMA_URL}/api/generate", json=body, timeout=model_timeout)
     r.raise_for_status()
     return schema.model_validate_json(_extract_json(r.json().get("response", "")))

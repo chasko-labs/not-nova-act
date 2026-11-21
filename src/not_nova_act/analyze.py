@@ -34,7 +34,7 @@ def describe_screenshot(screenshot_path: str, prompt: str,
         raw = Path(screenshot_path).read_bytes()
         body = {"model": PLANNER_MODEL, "prompt": prompt,
                 "images": [_payload(raw)], "stream": False,
-                "options": {"num_ctx": 8192, "think": False}}
+                "options": {"num_ctx": 4096, "think": False}}
         r = httpx.post(f"{OLLAMA_URL}/api/generate", json=body, timeout=timeout)
         r.raise_for_status()
         return {"status": "completed",
